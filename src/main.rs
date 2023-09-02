@@ -13,18 +13,23 @@ struct Location {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Circuit {
-    circuitId: String,
+    #[serde(rename = "circuitId")]
+    circuit_id: String,
     url: String,
-    circuitName: String,
-    Location: Location,
+    #[serde(rename = "circuitName")]
+    circuit_name: String,
+    #[serde(rename = "Location")]
+    location: Location,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct CircuitTable {
-    Circuits: Vec<Circuit>,
+    #[serde(rename = "Circuits")]
+    circuits: Vec<Circuit>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
 struct Circuits {
     xmlns: String,
     series: String,
@@ -32,12 +37,14 @@ struct Circuits {
     limit: String,
     offset: String,
     total: String,
-    CircuitTable: CircuitTable,
+    #[serde(rename = "CircuitTable")]
+    circuit_table: CircuitTable,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct MRData {
-    MRData: Circuits,
+    #[serde(rename = "MRData")]
+    mrdata: Circuits,
 }
 
 fn main() {
@@ -63,8 +70,8 @@ fn main() {
     let mut circuit_map: HashMap<String, Circuit> = HashMap::new();
 
     // Populate the HashMap with circuit IDs and corresponding Circuit structs
-    for circuit in &parsed_json.MRData.CircuitTable.Circuits {
-        circuit_map.insert(circuit.circuitId.clone(), circuit.clone());
+    for circuit in &parsed_json.mrdata.circuit_table.circuits {
+        circuit_map.insert(circuit.circuit_id.clone(), circuit.clone());
     }
 
     // Now you can work with the HashMap
