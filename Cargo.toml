@@ -1,5 +1,5 @@
 [package]
-name = "f1cli"
+name = "f1rs"
 version = "0.1.0"
 edition = "2021"
 

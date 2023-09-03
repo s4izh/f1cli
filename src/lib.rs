@@ -34,7 +34,7 @@ pub fn ensure_cache_dir(year: Option<i32>) -> Result<String, std::io::Error> {
     }
 
     // Create the 'cli' subdirectory inside the cache directory
-    let cli_dir = cache_dir.join("f1cli");
+    let cli_dir = cache_dir.join("f1rs");
     if !cli_dir.exists() {
         if let Err(err) = fs::create_dir(&cli_dir) {
             return Err(std::io::Error::new(
