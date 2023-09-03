@@ -62,8 +62,8 @@ struct Race {
     race_name: String,
     #[serde(rename = "Circuit")]
     circuit: Circuit,
-    date: Option<String>,
-    time: Option<String>,
+    date: String,
+    time: String,
     #[serde(rename = "FirstPractice")]
     first_practice: Schedule,
     #[serde(rename = "SecondPractice")]
@@ -101,6 +101,171 @@ struct SeasonJson {
     mrdata: Races,
 }
 
+use clap::{Args, Parser, Subcommand};
+
+/// Search for a pattern in a file and display the lines that contain it.
+#[derive(Parser, Debug)]
+#[clap(author, version, about)]
+struct Cli {
+    /// The command to execute
+    #[clap(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Command {
+    /// Fetch the current season's schedule
+    Schedule(ScheduleCommand),
+    // /// Fetch the current season's standings
+    Tui(TuiCommand),
+    // /// Fetch the current season's results
+    // Results(ResultsCommand),
+}
+
+#[derive(Debug, Args)]
+pub struct ScheduleCommand {
+    /// The circuit to get the schedule for
+    circuit_id: String,
+    /// The year to get the schedule for defaults to current year
+    year: Option<i32>,
+}
+
+#[derive(Debug, Args)]
+pub struct TuiCommand {}
+
+#[derive(Debug)]
+struct WeekendSchedule {
+    first_practice: Schedule,
+    second_practice: Schedule,
+    third_practice: Option<Schedule>,
+    qualifying: Schedule,
+    sprint: Option<Schedule>,
+    race: Schedule,
+}
+
+fn get_all_schedules(year: i32) -> Result<Vec<WeekendSchedule>, std::io::Error> {
+    let season = f1rs::web::fetch_or_cache(
+        "http://ergast.com/api/f1/2023.json",
+        "season.json",
+        &f1rs::ensure_cache_dir(None).unwrap(),
+    );
+    let season_json = serde_json::from_str::<SeasonJson>(&season).unwrap();
+    let mut schedules: Vec<WeekendSchedule> = Vec::new();
+    for race in &season_json.mrdata.race_table.races {
+        let ws: WeekendSchedule = {
+            let t_race = Schedule {
+                date: race.date.clone(),
+                time: race.time.clone(),
+            };
+            let t_first_practice = Schedule {
+                date: race.first_practice.date.clone(),
+                time: race.first_practice.time.clone(),
+            };
+            let t_second_practice = Schedule {
+                date: race.second_practice.date.clone(),
+                time: race.second_practice.time.clone(),
+            };
+            let t_third_practice = match &race.third_practice {
+                Some(t_third_practice) => Some(Schedule {
+                    date: t_third_practice.date.clone(),
+                    time: t_third_practice.time.clone(),
+                }),
+                None => None,
+            };
+            let t_sprint = match &race.sprint {
+                Some(t_sprint) => Some(Schedule {
+                    date: t_sprint.date.clone(),
+                    time: t_sprint.time.clone(),
+                }),
+                None => None,
+            };
+            let t_qualifying = Schedule {
+                date: race.qualifying.date.clone(),
+                time: race.qualifying.time.clone(),
+            };
+            WeekendSchedule {
+                first_practice: t_first_practice,
+                second_practice: t_second_practice,
+                third_practice: t_third_practice,
+                qualifying: t_qualifying,
+                sprint: t_sprint,
+                race: t_race,
+            }
+        };
+        schedules.push(ws);
+    }
+    return Ok(schedules);
+}
+
+fn get_schedule(circuit_id: &str, year: Option<i32>) -> Result<WeekendSchedule, String> {
+    let season = f1rs::web::fetch_or_cache(
+        "http://ergast.com/api/f1/2023.json",
+        "season.json",
+        &f1rs::ensure_cache_dir(None).unwrap(),
+    );
+    let season_json = serde_json::from_str::<SeasonJson>(&season).unwrap();
+    for race in &season_json.mrdata.race_table.races {
+        if race.circuit.circuit_id == circuit_id {
+            let ws: WeekendSchedule = {
+                let t_race = Schedule {
+                    date: race.date.clone(),
+                    time: race.time.clone(),
+                };
+                let t_first_practice = Schedule {
+                    date: race.first_practice.date.clone(),
+                    time: race.first_practice.time.clone(),
+                };
+                let t_second_practice = Schedule {
+                    date: race.second_practice.date.clone(),
+                    time: race.second_practice.time.clone(),
+                };
+                let t_third_practice = match &race.third_practice {
+                    Some(t_third_practice) => Some(Schedule {
+                        date: t_third_practice.date.clone(),
+                        time: t_third_practice.time.clone(),
+                    }),
+                    None => None,
+                };
+                let t_sprint = match &race.sprint {
+                    Some(t_sprint) => Some(Schedule {
+                        date: t_sprint.date.clone(),
+                        time: t_sprint.time.clone(),
+                    }),
+                    None => None,
+                };
+                let t_qualifying = Schedule {
+                    date: race.qualifying.date.clone(),
+                    time: race.qualifying.time.clone(),
+                };
+                WeekendSchedule {
+                    first_practice: t_first_practice,
+                    second_practice: t_second_practice,
+                    third_practice: t_third_practice,
+                    qualifying: t_qualifying,
+                    sprint: t_sprint,
+                    race: t_race,
+                }
+            };
+            return Ok(ws);
+        }
+    }
+    Err("Circuit not found".to_string())
+}
+
+fn print_schedule(circuit_id: &str) {
+    let s = get_schedule(circuit_id, None).unwrap();
+    println!("First Practice: {:?}", s.first_practice);
+    println!("Second Practice: {:?}", s.second_practice);
+    if s.third_practice.is_some() {
+        println!("Third Practice: {:?}", s.third_practice.unwrap());
+    }
+    println!("Qualifying: {:?}", s.qualifying);
+    if s.sprint.is_some() {
+        println!("Sprint: {:?}", s.sprint.unwrap());
+    };
+    println!("Race: {:?}", s.race);
+}
+
 fn main() {
     let cache_dir = match f1rs::ensure_cache_dir(Some(Utc::now().year())) {
         Ok(dir) => dir,
@@ -109,6 +274,34 @@ fn main() {
             std::process::exit(1);
         }
     };
+
+    env_logger::init();
+
+    let args = Cli::parse();
+    println!("{:?}", args);
+
+    print_schedule("monza");
+
+    for schedule in get_all_schedules(2023).unwrap() {
+        println!("{:?}", schedule);
+    }
+
+    // match args.command {
+    //     Command::Tui(_) => println!("Starting TUI..."),
+    //     Command::Schedule(ref schedule) => get_schedule(&schedule.circuit_id, None),
+    // };
+
+    // match args.command {
+    //     Command::Schedule(schedule) => {
+    //         println!("circuit_id = {}", circuit_id);
+    //         if let Some(year) = schedule.year {
+    //             println!("year = {}", year);
+    //         } else {
+    //             println!("year = {}", Utc::now().year());
+    //         }
+    //     }
+    //     _ => (),
+    // }
 
     // println!("cache_dir = {}", cache_dir);
 
@@ -233,11 +426,7 @@ fn main() {
     for race in &season_2023_json.mrdata.race_table.races {
         let utc_time = Utc
             .datetime_from_str(
-                &format!(
-                    "{}T{}",
-                    race.date.clone().unwrap(),
-                    race.time.clone().unwrap()
-                ),
+                &format!("{}T{}", race.date.clone(), race.time.clone()),
                 "%Y-%m-%dT%H:%M:%SZ",
             )
             .unwrap();
