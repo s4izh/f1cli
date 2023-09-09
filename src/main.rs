@@ -103,7 +103,7 @@ struct SeasonJson {
 
 use clap::{Args, Parser, Subcommand};
 
-/// Search for a pattern in a file and display the lines that contain it.
+// Display information about f1
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
 struct Cli {
@@ -144,109 +144,96 @@ struct WeekendSchedule {
 }
 
 fn get_all_schedules(year: i32) -> Result<Vec<WeekendSchedule>, std::io::Error> {
+    let url = format!("http://ergast.com/api/f1/{}.json", year);
+    let cache_file = format!("{}.json", year);
     let season = f1rs::web::fetch_or_cache(
-        "http://ergast.com/api/f1/2023.json",
-        "season.json",
-        &f1rs::ensure_cache_dir(None).unwrap(),
+        &url,
+        &cache_file,
+        &f1rs::ensure_cache_dir(Some(year)).unwrap(),
     );
     let season_json = serde_json::from_str::<SeasonJson>(&season).unwrap();
     let mut schedules: Vec<WeekendSchedule> = Vec::new();
     for race in &season_json.mrdata.race_table.races {
-        let ws: WeekendSchedule = {
-            let t_race = Schedule {
-                date: race.date.clone(),
-                time: race.time.clone(),
-            };
-            let t_first_practice = Schedule {
+        let weekend_schedule = WeekendSchedule {
+            first_practice: Schedule {
                 date: race.first_practice.date.clone(),
                 time: race.first_practice.time.clone(),
-            };
-            let t_second_practice = Schedule {
+            },
+            second_practice: Schedule {
                 date: race.second_practice.date.clone(),
                 time: race.second_practice.time.clone(),
-            };
-            let t_third_practice = match &race.third_practice {
-                Some(t_third_practice) => Some(Schedule {
-                    date: t_third_practice.date.clone(),
-                    time: t_third_practice.time.clone(),
+            },
+            third_practice: match &race.third_practice {
+                Some(third_practice) => Some(Schedule {
+                    date: third_practice.date.clone(),
+                    time: third_practice.time.clone(),
                 }),
                 None => None,
-            };
-            let t_sprint = match &race.sprint {
-                Some(t_sprint) => Some(Schedule {
-                    date: t_sprint.date.clone(),
-                    time: t_sprint.time.clone(),
+            },
+            sprint: match &race.sprint {
+                Some(sprint) => Some(Schedule {
+                    date: sprint.date.clone(),
+                    time: sprint.time.clone(),
                 }),
                 None => None,
-            };
-            let t_qualifying = Schedule {
+            },
+            qualifying: Schedule {
                 date: race.qualifying.date.clone(),
                 time: race.qualifying.time.clone(),
-            };
-            WeekendSchedule {
-                first_practice: t_first_practice,
-                second_practice: t_second_practice,
-                third_practice: t_third_practice,
-                qualifying: t_qualifying,
-                sprint: t_sprint,
-                race: t_race,
-            }
+            },
+            race: Schedule {
+                date: race.date.clone(),
+                time: race.time.clone(),
+            },
         };
-        schedules.push(ws);
+        schedules.push(weekend_schedule);
     }
     return Ok(schedules);
 }
 
 fn get_schedule(circuit_id: &str, year: Option<i32>) -> Result<WeekendSchedule, String> {
-    let season = f1rs::web::fetch_or_cache(
-        "http://ergast.com/api/f1/2023.json",
-        "season.json",
-        &f1rs::ensure_cache_dir(None).unwrap(),
+    let url = format!(
+        "http://ergast.com/api/f1/{}.json",
+        year.unwrap_or(Utc::now().year())
     );
+    let cache_file = format!("{}.json", year.unwrap_or(Utc::now().year()));
+    let season =
+        f1rs::web::fetch_or_cache(&url, &cache_file, &f1rs::ensure_cache_dir(None).unwrap());
     let season_json = serde_json::from_str::<SeasonJson>(&season).unwrap();
     for race in &season_json.mrdata.race_table.races {
         if race.circuit.circuit_id == circuit_id {
-            let ws: WeekendSchedule = {
-                let t_race = Schedule {
-                    date: race.date.clone(),
-                    time: race.time.clone(),
-                };
-                let t_first_practice = Schedule {
+            return Ok(WeekendSchedule {
+                first_practice: Schedule {
                     date: race.first_practice.date.clone(),
                     time: race.first_practice.time.clone(),
-                };
-                let t_second_practice = Schedule {
+                },
+                second_practice: Schedule {
                     date: race.second_practice.date.clone(),
                     time: race.second_practice.time.clone(),
-                };
-                let t_third_practice = match &race.third_practice {
+                },
+                third_practice: match &race.third_practice {
                     Some(t_third_practice) => Some(Schedule {
                         date: t_third_practice.date.clone(),
                         time: t_third_practice.time.clone(),
                     }),
                     None => None,
-                };
-                let t_sprint = match &race.sprint {
+                },
+                qualifying: Schedule {
+                    date: race.qualifying.date.clone(),
+                    time: race.qualifying.time.clone(),
+                },
+                sprint: match &race.sprint {
                     Some(t_sprint) => Some(Schedule {
                         date: t_sprint.date.clone(),
                         time: t_sprint.time.clone(),
                     }),
                     None => None,
-                };
-                let t_qualifying = Schedule {
-                    date: race.qualifying.date.clone(),
-                    time: race.qualifying.time.clone(),
-                };
-                WeekendSchedule {
-                    first_practice: t_first_practice,
-                    second_practice: t_second_practice,
-                    third_practice: t_third_practice,
-                    qualifying: t_qualifying,
-                    sprint: t_sprint,
-                    race: t_race,
-                }
-            };
-            return Ok(ws);
+                },
+                race: Schedule {
+                    date: race.date.clone(),
+                    time: race.time.clone(),
+                },
+            });
         }
     }
     Err("Circuit not found".to_string())
